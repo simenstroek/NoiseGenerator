@@ -266,6 +266,17 @@
               <i class="bi bi-question"></i>
             </span>
           </div>
+
+            <div class="input-group mt-3">
+              <label class="input-group-text" :for="'invert'+gi">Invert</label>
+              <div class="input-group-text">
+                <input class="form-check-input mt-0" type="checkbox" :id="'invert'+gi" v-model="gen.invert">
+              </div>
+              <span class="input-group-text" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Outputs 1 - value. Applies to everything that reads this generator: blends, warps and channels.">
+                <i class="bi bi-question"></i>
+              </span>
+              <button class="btn btn-outline-secondary ms-auto" type="button" title="Reset sizes, octaves, weights, strength and factor to their defaults (keeps type, seed and sources)" @click="resetGeneratorValues(gen)"><i class="bi bi-arrow-counterclockwise"></i> Reset values</button>
+            </div>
           </div>
         </div>
         <button class="btn btn-outline-secondary mb-3" type="button" :disabled="settings.generators.length >= MAX_GENERATORS" @click="addGenerator()"><i class="bi bi-plus-lg"></i> Add generator</button>
@@ -472,8 +483,16 @@ const defaultGeneratorSettings = {
   blendB: 1,
   blendMode: 0,
   blendFactor: 0.5,
-  blendMask: -1       // generator used as per-pixel blend factor (-1 = use blendFactor)
+  blendMask: -1,      // generator used as per-pixel blend factor (-1 = use blendFactor)
+  invert: false
 }
+
+// numeric settings restored by the per-generator reset button (not type, seed, or source choices)
+const numericDefaultKeys = [
+  "perlinSize", "perlinOctaves", "perlinLacunarity", "voronoiCellSize",
+  "voronoiWeight1", "voronoiWeight2", "voronoiWeight3", "voronoiWeight4",
+  "warpStrength", "blendFactor",
+];
 
 const channelsPresets = {
     "Default": [
@@ -621,7 +640,7 @@ function GetSettingsBufferData(generator: number) {
       o.type, o.perlinSize, o.perlinOctaves, o.perlinLacunarity, o.voronoiCellSize,
       o.voronoiWeight1, o.voronoiWeight2, o.voronoiWeight3, o.voronoiWeight4, o.voronoiDistanceType,
       o.seamless ? 1 : 0, o.seed,
-      o.warpSource, o.warpStrength, o.blendA, o.blendB, o.blendMode, o.blendFactor, o.blendMask, 0,
+      o.warpSource, o.warpStrength, o.blendA, o.blendB, o.blendMode, o.blendFactor, o.blendMask, o.invert ? 1 : 0,
     ];
   };
   return new Float32Array([
@@ -785,6 +804,11 @@ function render() {
 function initTooltips() {
   // doesn't work on hidden panels: use v-show instead of v-if
   document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => bootstrap.Tooltip.getOrCreateInstance(el));
+}
+
+
+function resetGeneratorValues(gen: any) {
+  for (const k of numericDefaultKeys) gen[k] = (defaultGeneratorSettings as any)[k];
 }
 
 

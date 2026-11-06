@@ -65,7 +65,7 @@ struct Generator {
   blendMode: float,
   blendFactor: float,
   blendMask: float,    // generator index, -1 = use blendFactor
-  pad0: float,
+  invert: float,
 };
 
 struct Settings {

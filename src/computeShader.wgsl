@@ -6,7 +6,7 @@
 
 // Base value of generator `gi` at position `p_in` (0..1 across the texture).
 // Ignores that generator's own warp; Blend generators have no position, so they return neutral 0.5.
-fn noise_at(gi: uint, p_in: float3) -> float {
+fn noise_base(gi: uint, p_in: float3) -> float {
   let g = settings.generators[gi];
   let noiseType = uint(g.noiseType);
   let perlinSize = float(g.perlinSize);
@@ -131,6 +131,13 @@ fn noise_at(gi: uint, p_in: float3) -> float {
 }
 
 
+// noise_base plus the generator's invert, so warp sources respect it too
+fn noise_at(gi: uint, p_in: float3) -> float {
+  let v = noise_base(gi, p_in);
+  return select(v, 1.0 - v, settings.generators[gi].invert != 0.0);
+}
+
+
 fn blend_op(mode: uint, a: float, b: float) -> float {
   if (mode == BLEND_ADD) { return a + b; }
   if (mode == BLEND_MULTIPLY) { return a * b; }
@@ -176,6 +183,7 @@ fn main(@builtin(global_invocation_id) coord: uint3) {
       factor = noiseBuffer[index * count + uint(m)];
     }
     output = mix(av, blend_op(uint(g.blendMode), av, bv), saturate(factor));
+    if (g.invert != 0.0) { output = 1.0 - output; }
   } else {
     var p = float3(coord) / float3(resolution);
     let warpSource = int(g.warpSource);

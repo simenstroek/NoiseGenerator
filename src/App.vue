@@ -2,18 +2,18 @@
   <div class="container text-center" :style="{'max-width': '1000px'}">
     <div class="row m-5">
       <div class="position-relative">
-        <h1 class="display-3">Noise Generator</h1><span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-info">New version</span>
+        <h1 class="display-3">Noise Generator</h1><span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-info">Blend &amp; warp</span>
       </div>
-      <p><small>A simple & fast random noise generator by Bubblebird Studio. <a href="https://bubblebirdstudio.com/" target="_blank">Buy our games</a> to support this tool!</small></p>
+      <p><small>A 3D noise texture generator with blending and domain warping. A fork of the <a href="https://github.com/Bubblebird-Studio/NoiseGenerator" target="_blank">NoiseGenerator</a> by Bubblebird Studio (MIT license).</small></p>
     </div>
 
     <div v-if="error != ''" class="alert alert-danger" role="alert">
       <p>{{ error }}</p>
-      <p>Open an issue on <a href="https://github.com/Bubblebird-Studio/NoiseGenerator">Github</a> to let us know what went wrong.</p>
+      <p>Open an issue on <a href="https://github.com/simenstroek/NoiseGenerator/issues">Github</a> to let us know what went wrong.</p>
     </div>
 
     <div class="row">
-      <div class="col-md-auto">
+      <div class="col-md-auto position-sticky align-self-start" :style="{top: '1rem'}">
         <div class="viewer overflow-auto">
           <div v-if="generating" id="generatingPlanel" class="d-flex align-items-center justify-content-center">
             <div class="spinner-border" role="status">
@@ -21,7 +21,7 @@
             </div>
           </div>
           <div v-if="renderType == 1" id="previewInfoPanel" class="d-flex align-content-center justify-content-center">
-            <p>Previewing generator G{{ settings.activeGenerator }}</p>
+            <p>Lit view of G{{ litGenerator }}</p>
           </div>
           <canvas width="256" height="256" ref="canvas" @mouseenter="renderType = 1" @mouseleave="renderType = 0" @mousemove="handleMouseMove"></canvas>
         </div>
@@ -94,101 +94,86 @@
         </div>
 
         <!-- ################  GENERATORS  ################ -->
-        <ul class="nav nav-tabs">
-          <li class="nav-item">
-            <a class="nav-link disabled" aria-disabled="true">Generators</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link channel-nav" :class="{'active': settings.activeGenerator == 0}" role="button" data-channel=0 @click="settings.activeGenerator = 0">G0</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link channel-nav" :class="{'active': settings.activeGenerator == 1}" role="button" data-channel=1 @click="settings.activeGenerator = 1">G1</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link channel-nav" :class="{'active': settings.activeGenerator == 2}" role="button" data-channel=2 @click="settings.activeGenerator = 2">G2</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link channel-nav" :class="{'active': settings.activeGenerator == 3}" role="button" data-channel=3 @click="settings.activeGenerator = 3">G3</a>
-          </li>
-        </ul>
-
-        <div class="col border-start border-end border-bottom p-3 mb-3">
-          <div class="input-group mb-3">
-            <label class="input-group-text" for="type">Type</label>
-            <select class="form-select" id="type" v-model="activeGenerator.type">
+        <div v-for="(gen, gi) in settings.generators" :key="gen.uid" class="card mb-3 text-start" :class="{'border-info': settings.previewGenerator == gi}">
+          <div class="card-header d-flex align-items-center gap-2" role="button" @click="openGenerator = openGenerator == gi ? -1 : gi">
+            <i class="bi" :class="openGenerator == gi ? 'bi-chevron-down' : 'bi-chevron-right'"></i>
+            <strong>G{{ gi }}</strong>
+            <select class="form-select form-select-sm w-auto" v-model="gen.type" @click.stop>
               <option v-for="(noiseType, i) in noiseTypes" :value="i">{{ noiseType }}</option>
             </select>
+            <button class="btn btn-sm ms-auto" :class="settings.previewGenerator == gi ? 'btn-info' : 'btn-outline-info'" type="button" title="Preview this generator" @click.stop="settings.previewGenerator = settings.previewGenerator == gi ? -1 : gi"><i class="bi bi-eye"></i> Preview</button>
+            <button class="btn btn-sm btn-outline-danger" type="button" title="Remove generator" :disabled="settings.generators.length <= 1" @click.stop="removeGenerator(gi)"><i class="bi bi-trash3"></i></button>
           </div>
-
-          <div v-show="activeGenerator.type == noiseTypes.indexOf('Perlin')" class="settings m-3">
+          <div v-show="openGenerator == gi" class="card-body p-3">
+          <div v-show="gen.type == noiseTypes.indexOf('Perlin')" class="settings m-3">
             <div class="input-group mb-1">
-              <label class="input-group-text" for="perlinSize">Size</label>
+              <label class="input-group-text" :for="'perlinSize'+gi">Size</label>
               <div class="input-group-text">
-                <input type="range" class="form-range" min="0.01" max="0.3" step="0.01" v-model="activeGenerator.perlinSize">
+                <input type="range" class="form-range" min="0.01" max="0.3" step="0.01" v-model="gen.perlinSize">
               </div>
-              <input type="number" class="form-control" min="0.01" max="0.3" step="0.01" v-model="activeGenerator.perlinSize" id="perlinSize">
+              <input type="number" class="form-control" min="0.01" max="0.3" step="0.01" v-model="gen.perlinSize" :id="'perlinSize'+gi">
             </div>
             <div class="input-group mb-1">
-              <label class="input-group-text" for="perlinOctaves">Octaves</label>
+              <label class="input-group-text" :for="'perlinOctaves'+gi">Octaves</label>
               <div class="input-group-text">
-                <input type="range" class="form-range" min="1" max="10" step="1" id="perlinOctaves" v-model="activeGenerator.perlinOctaves">
+                <input type="range" class="form-range" min="1" max="10" step="1" :id="'perlinOctaves'+gi" v-model="gen.perlinOctaves">
               </div>
-              <label class="input-group-text" for="perlinOctaves">{{ activeGenerator.perlinOctaves }}</label>
+              <label class="input-group-text" :for="'perlinOctaves'+gi">{{ gen.perlinOctaves }}</label>
               <span class="input-group-text" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Sets the number of noise layers combined to create fractal detail.">
                 <i class="bi bi-question"></i>
               </span>
             </div>
-            <div v-show="activeGenerator.perlinOctaves > 1" class="input-group mb-1">
-              <label class="input-group-text" for="perlinLacunarity">Lacunarity</label>
+            <div v-show="gen.perlinOctaves > 1" class="input-group mb-1">
+              <label class="input-group-text" :for="'perlinLacunarity'+gi">Lacunarity</label>
               <div class="input-group-text">
-                <input type="range" class="form-range" min="1.0" max="10.0" step="0.01" v-model="activeGenerator.perlinLacunarity" @dblclick="activeGenerator.perlinLacunarity = defaultSettings.generators[0].perlinLacunarity">
+                <input type="range" class="form-range" min="1.0" max="10.0" step="0.01" v-model="gen.perlinLacunarity" @dblclick="gen.perlinLacunarity = defaultGeneratorSettings.perlinLacunarity">
               </div>
-              <input type="number" class="form-control" min="1.0" max="10.0" step="0.01" v-model="activeGenerator.perlinLacunarity" id="perlinLacunarity">
+              <input type="number" class="form-control" min="1.0" max="10.0" step="0.01" v-model="gen.perlinLacunarity" :id="'perlinLacunarity'+gi">
               <span class="input-group-text" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Controls how quickly frequency increases with each octave, affecting texture detail.">
                 <i class="bi bi-question"></i>
               </span>
             </div>
           </div>
 
-          <div v-show="activeGenerator.type == noiseTypes.indexOf('Voronoi')" class="settings m-3">
+          <div v-show="gen.type == noiseTypes.indexOf('Voronoi')" class="settings m-3">
             <div class="input-group mb-1">
-              <label class="input-group-text" for="voronoiCellSize">Cell size</label>
+              <label class="input-group-text" :for="'voronoiCellSize'+gi">Cell size</label>
               <div class="input-group-text">
-                <input type="range" class="form-range" min="0.01" max="0.3" step="0.01" v-model="activeGenerator.voronoiCellSize">
+                <input type="range" class="form-range" min="0.01" max="0.3" step="0.01" v-model="gen.voronoiCellSize">
               </div>
-              <input type="number" class="form-control" min="0.01" max="0.3" step="0.01" v-model="activeGenerator.voronoiCellSize" id="voronoiCellSize">
+              <input type="number" class="form-control" min="0.01" max="0.3" step="0.01" v-model="gen.voronoiCellSize" :id="'voronoiCellSize'+gi">
             </div>
             <div class="input-group mb-1">
-              <label class="input-group-text" for="voronoiWeight1">Weight feature 1</label>
+              <label class="input-group-text" :for="'voronoiWeight1'+gi">Weight feature 1</label>
               <div class="input-group-text">
-                <input type="range" class="form-range" min="-2.0" max="2.0" step="0.01" v-model="activeGenerator.voronoiWeight1" @dblclick="activeGenerator.voronoiWeight1 = 0">
+                <input type="range" class="form-range" min="-2.0" max="2.0" step="0.01" v-model="gen.voronoiWeight1" @dblclick="gen.voronoiWeight1 = 0">
               </div>
-              <input type="number" class="form-control" min="-2.0" max="2.0" step="0.01" v-model="activeGenerator.voronoiWeight1" id="voronoiWeight1">
+              <input type="number" class="form-control" min="-2.0" max="2.0" step="0.01" v-model="gen.voronoiWeight1" :id="'voronoiWeight1'+gi">
             </div>
             <div class="input-group mb-1">
-              <label class="input-group-text" for="voronoiWeight2">Weight feature 2</label>
+              <label class="input-group-text" :for="'voronoiWeight2'+gi">Weight feature 2</label>
               <div class="input-group-text">
-                <input type="range" class="form-range" min="-2.0" max="2.0" step="0.01" id="voronoiWeight2" v-model="activeGenerator.voronoiWeight2" @dblclick="activeGenerator.voronoiWeight2 = 0">
+                <input type="range" class="form-range" min="-2.0" max="2.0" step="0.01" :id="'voronoiWeight2'+gi" v-model="gen.voronoiWeight2" @dblclick="gen.voronoiWeight2 = 0">
               </div>
-              <input type="number" class="form-control" min="-2.0" max="2.0" step="0.01" v-model="activeGenerator.voronoiWeight2" id="voronoiWeight2">
+              <input type="number" class="form-control" min="-2.0" max="2.0" step="0.01" v-model="gen.voronoiWeight2" :id="'voronoiWeight2'+gi">
             </div>
             <div class="input-group mb-1">
-              <label class="input-group-text" for="voronoiWeight3">Weight feature 3</label>
+              <label class="input-group-text" :for="'voronoiWeight3'+gi">Weight feature 3</label>
               <div class="input-group-text">
-                <input type="range" class="form-range" min="-2.0" max="2.0" step="0.01" id="voronoiWeight3" v-model="activeGenerator.voronoiWeight3" @dblclick="activeGenerator.voronoiWeight3 = 0">
+                <input type="range" class="form-range" min="-2.0" max="2.0" step="0.01" :id="'voronoiWeight3'+gi" v-model="gen.voronoiWeight3" @dblclick="gen.voronoiWeight3 = 0">
               </div>
-              <input type="number" class="form-control" min="-2.0" max="2.0" step="0.01" v-model="activeGenerator.voronoiWeight3" id="voronoiWeight3">
+              <input type="number" class="form-control" min="-2.0" max="2.0" step="0.01" v-model="gen.voronoiWeight3" :id="'voronoiWeight3'+gi">
             </div>
             <div class="input-group mb-1">
-              <label class="input-group-text" for="voronoiWeight4">Weight feature 4</label>
+              <label class="input-group-text" :for="'voronoiWeight4'+gi">Weight feature 4</label>
               <div class="input-group-text">
-                <input type="range" class="form-range" min="-2.0" max="2.0" step="0.01" id="voronoiWeight4" v-model="activeGenerator.voronoiWeight4" @dblclick="activeGenerator.voronoiWeight4 = 0">
+                <input type="range" class="form-range" min="-2.0" max="2.0" step="0.01" :id="'voronoiWeight4'+gi" v-model="gen.voronoiWeight4" @dblclick="gen.voronoiWeight4 = 0">
               </div>
-              <input type="number" class="form-control" min="-2.0" max="2.0" step="0.01" v-model="activeGenerator.voronoiWeight4" id="voronoiWeight4">
+              <input type="number" class="form-control" min="-2.0" max="2.0" step="0.01" v-model="gen.voronoiWeight4" :id="'voronoiWeight4'+gi">
             </div>
             <div class="input-group mb-1">
-              <label class="input-group-text" for="voronoiDistanceType">Distance type</label>
-              <select class="form-select" v-model="activeGenerator.voronoiDistanceType" id="voronoiDistanceType">
+              <label class="input-group-text" :for="'voronoiDistanceType'+gi">Distance type</label>
+              <select class="form-select" v-model="gen.voronoiDistanceType" :id="'voronoiDistanceType'+gi">
                 <option v-for="(distanceType, i) in distanceTypes" :value="i">{{ distanceType }}</option>
               </select>
               <span class="input-group-text" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Choose the algorithm to use for distance calculation">
@@ -197,25 +182,93 @@
             </div>
           </div>
 
-          <div class="input-group mb-3">
-            <label class="input-group-text" for="seamless">Seamless</label>
+          <div v-show="gen.type == BLEND" class="settings m-3">
+            <p v-if="gi == 0" class="text-warning mb-1">G0 is computed first, so it can't blend anything. Use G1 or later.</p>
+            <div class="input-group mb-1">
+              <label class="input-group-text" :for="'blendA'+gi">Source A</label>
+              <select class="form-select" v-model="gen.blendA" :id="'blendA'+gi">
+                <option v-for="(n, i) in settings.generators.length" :value="i" :disabled="i >= gi">G{{ i }}</option>
+              </select>
+              <label class="input-group-text" :for="'blendB'+gi">Source B</label>
+              <select class="form-select" v-model="gen.blendB" :id="'blendB'+gi">
+                <option v-for="(n, i) in settings.generators.length" :value="i" :disabled="i >= gi">G{{ i }}</option>
+              </select>
+              <span class="input-group-text" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Sources must be earlier generators (the final output of each, including its warp). Blends can feed later blends.">
+                <i class="bi bi-question"></i>
+              </span>
+            </div>
+            <div class="input-group mb-1">
+              <label class="input-group-text" :for="'blendMode'+gi">Mode</label>
+              <select class="form-select" v-model="gen.blendMode" :id="'blendMode'+gi">
+                <option v-for="(mode, i) in blendModes" :value="i">{{ mode }}</option>
+              </select>
+            </div>
+            <div class="input-group mb-1">
+              <label class="input-group-text" :for="'blendFactor'+gi">Factor</label>
+              <div class="input-group-text">
+                <input type="range" class="form-range" min="0" max="1" step="0.01" v-model="gen.blendFactor" @dblclick="gen.blendFactor = 0.5">
+              </div>
+              <input type="number" class="form-control" min="0" max="1" step="0.01" v-model="gen.blendFactor" :id="'blendFactor'+gi">
+              <span class="input-group-text" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Result = mix(A, mode(A, B), factor). With Mix this is a plain crossfade from A to B.">
+                <i class="bi bi-question"></i>
+              </span>
+            </div>
+            <div class="input-group mb-1">
+              <label class="input-group-text" :for="'blendMask'+gi">Factor mask</label>
+              <select class="form-select" v-model="gen.blendMask" :id="'blendMask'+gi">
+                <option :value="-1">None (use factor)</option>
+                <option v-for="(n, i) in settings.generators.length" :value="i" :disabled="i >= gi">G{{ i }}</option>
+              </select>
+              <span class="input-group-text" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Use an earlier generator as a per-pixel factor instead of the slider.">
+                <i class="bi bi-question"></i>
+              </span>
+            </div>
+            <p v-if="[gen.blendA, gen.blendB, gen.blendMask].some(s => s >= gi)" class="text-danger mb-0">
+              A source at or after G{{ gi }} isn't computed yet and counts as 0.
+            </p>
+          </div>
+
+          <div v-show="gen.type != BLEND" class="settings m-3">
+            <div class="input-group mb-1">
+              <label class="input-group-text" :for="'warpSource'+gi">Warp by</label>
+              <select class="form-select" v-model="gen.warpSource" :id="'warpSource'+gi">
+                <option :value="-1">None</option>
+                <option v-for="(n, i) in settings.generators.length" :value="i" :disabled="i == gi || settings.generators[i].type == BLEND">G{{ i }}</option>
+              </select>
+              <span class="input-group-text" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Offsets the sample position by another generator's noise (domain warp). The source is sampled as its own base noise, so Blend generators and the source's own warp are not used.">
+                <i class="bi bi-question"></i>
+              </span>
+            </div>
+            <div v-show="gen.warpSource >= 0" class="input-group mb-1">
+              <label class="input-group-text" :for="'warpStrength'+gi">Strength</label>
+              <div class="input-group-text">
+                <input type="range" class="form-range" min="0" max="2" step="0.01" v-model="gen.warpStrength" @dblclick="gen.warpStrength = 0.25">
+              </div>
+              <input type="number" class="form-control" min="0" max="2" step="0.01" v-model="gen.warpStrength" :id="'warpStrength'+gi">
+            </div>
+          </div>
+
+          <div v-show="gen.type != BLEND" class="input-group mb-3">
+            <label class="input-group-text" :for="'seamless'+gi">Seamless</label>
             <div class="input-group-text">
-              <input class="form-check-input mt-0" type="checkbox" id="seamless" v-model="activeGenerator.seamless">
+              <input class="form-check-input mt-0" type="checkbox" :id="'seamless'+gi" v-model="gen.seamless">
             </div>
             <span class="input-group-text" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Makes the image tileable.">
               <i class="bi bi-question"></i>
             </span>
           </div>
 
-          <div class="input-group">
-            <label class="input-group-text" for="seed">Seed</label>
-            <input type="number" class="form-control" v-model="activeGenerator.seed" id="seed">
-            <button class="btn btn-outline-secondary" type="button" @click="activeGenerator.seed = getRandomSeed()"><i class="bi bi-arrow-clockwise"></i></button>
+          <div v-show="gen.type != BLEND" class="input-group">
+            <label class="input-group-text" :for="'seed'+gi">Seed</label>
+            <input type="number" class="form-control" v-model="gen.seed" :id="'seed'+gi">
+            <button class="btn btn-outline-secondary" type="button" @click="gen.seed = getRandomSeed()"><i class="bi bi-arrow-clockwise"></i></button>
             <span class="input-group-text" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Defines the starting point for random number generation, producing different noise patterns.">
               <i class="bi bi-question"></i>
             </span>
           </div>
+          </div>
         </div>
+        <button class="btn btn-outline-secondary mb-3" type="button" :disabled="settings.generators.length >= MAX_GENERATORS" @click="addGenerator()"><i class="bi bi-plus-lg"></i> Add generator</button>
 
         <!-- ################  SWIZZLE  ################ -->
         <ul class="nav nav-tabs">
@@ -248,7 +301,7 @@
           <div class="input-group mb-3">
             <label class="input-group-text" for="sourceGenerator">Source generator</label>
             <select class="form-select" v-model="activeChannel.generator" id="sourceGenerator">
-              <option v-for="(n, i) in 4" :value="i">G{{ i }}</option>
+              <option v-for="(n, i) in settings.generators.length" :value="i">G{{ i }}</option>
             </select>
             <span class="input-group-text" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Choose the source for this channel of the image">
               <i class="bi bi-question"></i>
@@ -299,10 +352,8 @@
       </div>
       <div class="row m-5">
         <p class="text-secondary">
-          <a href="mailto:contact@bubblebirdstudio.com">Contact us</a> for feature request or bug report. Visit the <a href="https://github.com/Bubblebird-Studio/NoiseGenerator" target="_blank">Github project page</a>.
-        </p>
-        <p class="text-secondary">
-          Access the previous version of this tool <a href="https://noisegenold.bubblebirdstudio.com" target="_blank">here</a>.
+          Report bugs or request features on the <a href="https://github.com/simenstroek/NoiseGenerator/issues" target="_blank">Github project page</a>.
+          Original tool by <a href="https://bubblebirdstudio.com/" target="_blank">Bubblebird Studio</a>.
         </p>
       </div>
     </div>
@@ -363,7 +414,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, useTemplateRef, reactive , onMounted, watch } from "vue";
+import { ref, computed, useTemplateRef, reactive , onMounted, watch, nextTick } from "vue";
 import { getRandomSeed, createBuffer, createPipeline } from "./utils.ts";
 import utilsShader from "./utils.wgsl?raw" with { type: "text" };
 import computeShader from "./computeShader.wgsl?raw" with { type: "text" };
@@ -384,7 +435,12 @@ let compositingPipeline: any;
 let computeBindGroup: any;
 let compositingBindGroup: any;
 
-const noiseTypes = ["Random", "Perlin", "Voronoi"];
+const noiseTypes = ["Random", "Perlin", "Voronoi", "Blend"];
+const BLEND = noiseTypes.indexOf("Blend");
+const MAX_GENERATORS = 8; // matches array<Generator, 8> in utils.wgsl; the noise buffer holds every generator per voxel
+let nextUid = 0;
+const openGenerator = ref(0); // accordion: index of the expanded generator card, -1 = all collapsed
+const blendModes = ["Mix", "Add", "Multiply", "Screen", "Difference", "Min", "Max", "Overlay"];
 const distanceTypes = ["Euclidean", "Squared", "Manhattan", "Chebyshev"];
 const sourceTypes = ["Value", "Normal X", "Normal Y", "0", "1"];
 const channelsData = [];
@@ -409,7 +465,14 @@ const defaultGeneratorSettings = {
   voronoiWeight3: 0.0,
   voronoiWeight4: 0.0,
   voronoiDistanceType: 0,
-  blueNoiseRadius: 1.5
+  blueNoiseRadius: 1.5,
+  warpSource: -1,     // generator whose noise offsets this one's position (-1 = none)
+  warpStrength: 0.25,
+  blendA: 0,          // blend sources must be earlier generators (G0 is computed first)
+  blendB: 1,
+  blendMode: 0,
+  blendFactor: 0.5,
+  blendMask: -1       // generator used as per-pixel blend factor (-1 = use blendFactor)
 }
 
 const channelsPresets = {
@@ -462,8 +525,8 @@ const defaultSettings = {
   resolution: 256,
   dimension: "2d",
   layout: "auto",
-  activeGenerator: 0,
-  generators: [defaultGeneratorSettings, defaultGeneratorSettings, defaultGeneratorSettings, defaultGeneratorSettings],
+  previewGenerator: -1, // generator shown raw in the canvas, -1 = channel output
+  generators: [{ ...defaultGeneratorSettings, uid: 0 }],
   activeChannel: 0,
   channels: channelsPresets["Default"],
   normalScale: 1.0,
@@ -471,7 +534,7 @@ const defaultSettings = {
 
 const settings = reactive(JSON.parse(JSON.stringify(defaultSettings)));
 const is3d = computed(() => settings.dimension === "3d" && settings.resolution < 512)
-const activeGenerator = computed(() => settings.generators[settings.activeGenerator])
+const litGenerator = computed(() => settings.previewGenerator >= 0 ? settings.previewGenerator : settings.channels[0].generator)
 const activeChannel = computed(() => settings.channels[settings.activeChannel])
 const canvasWidth = computed(() => settings.resolution * xTiles.value)
 const canvasHeight = computed(() => settings.resolution * yTiles.value)
@@ -512,12 +575,16 @@ watch(() => settings.resolution, (newValue, oldValue) => {
   generateNoise()
 })
 
+watch(() => settings.generators.length, () => {
+  setupRenderPipeline(); // the noise buffer is sized by generator count; must run before the settings watcher below
+})
+
 watch(settings, (newValue, oldValue) => {
   generateNoise();
 })
 
 onMounted(async () => {
-  [...document.querySelectorAll('[data-bs-toggle="tooltip"]')].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl)); // doesn't work on hidden panels: use v-show instead of v-if
+  initTooltips();
   try {
     const adapter = await navigator.gpu.requestAdapter();
     device = await adapter.requestDevice({
@@ -546,54 +613,22 @@ onMounted(async () => {
 })
 
 
+// Layout must match struct Settings in utils.wgsl: 8 header floats, 4 x 7 channel floats, 8 x 20 generator floats.
 function GetSettingsBufferData(generator: number) {
+  const g = (i: number) => {
+    const o = settings.generators[i];
+    return [
+      o.type, o.perlinSize, o.perlinOctaves, o.perlinLacunarity, o.voronoiCellSize,
+      o.voronoiWeight1, o.voronoiWeight2, o.voronoiWeight3, o.voronoiWeight4, o.voronoiDistanceType,
+      o.seamless ? 1 : 0, o.seed,
+      o.warpSource, o.warpStrength, o.blendA, o.blendB, o.blendMode, o.blendFactor, o.blendMask, 0,
+    ];
+  };
   return new Float32Array([
-    generator,
-    settings.resolution,
-    settings.resolution,
-    is3d.value ? settings.resolution : 1,
-    xTiles.value,
-    yTiles.value,
-    settings.generators[generator].type,
-    settings.generators[generator].perlinSize,
-    settings.generators[generator].perlinOctaves,
-    settings.generators[generator].perlinLacunarity,
-    settings.generators[generator].voronoiCellSize,
-    settings.generators[generator].voronoiWeight1,
-    settings.generators[generator].voronoiWeight2,
-    settings.generators[generator].voronoiWeight3,
-    settings.generators[generator].voronoiWeight4,
-    settings.generators[generator].voronoiDistanceType,
-    settings.generators[generator].seamless ? 1 : 0,
-    settings.generators[generator].seed,
-    settings.channels[0].display,
-    settings.channels[0].generator,
-    settings.channels[0].type,
-    settings.channels[0].invert ? 1 : 0,
-    settings.channels[0].gain,
-    settings.channels[0].gamma,
-    settings.channels[0].offset,
-    settings.channels[1].display,
-    settings.channels[1].generator,
-    settings.channels[1].type,
-    settings.channels[1].invert ? 1 : 0,
-    settings.channels[1].gain,
-    settings.channels[1].gamma,
-    settings.channels[1].offset,
-    settings.channels[2].display,
-    settings.channels[2].generator,
-    settings.channels[2].type,
-    settings.channels[2].invert ? 1 : 0,
-    settings.channels[2].gain,
-    settings.channels[2].gamma,
-    settings.channels[2].offset,
-    settings.channels[3].display,
-    settings.channels[3].generator,
-    settings.channels[3].type,
-    settings.channels[3].invert ? 1 : 0,
-    settings.channels[3].gain,
-    settings.channels[3].gamma,
-    settings.channels[3].offset,
+    generator, settings.resolution, settings.resolution, is3d.value ? settings.resolution : 1,
+    xTiles.value, yTiles.value, settings.generators.length, 0,
+    ...settings.channels.flatMap((c: any) => [+c.display, c.generator, c.type, c.invert ? 1 : 0, c.gain, c.gamma, c.offset]),
+    ...Array.from({ length: MAX_GENERATORS }, (_, i) => i < settings.generators.length ? g(i) : new Array(20).fill(0)).flat(),
   ]);
 }
 
@@ -602,7 +637,9 @@ function GetRenderBufferData() {
     renderType.value,
     lightPositionX.value,
     lightPositionY.value,
-    settings.activeGenerator,
+    litGenerator.value,
+    settings.previewGenerator,
+    0, 0, 0,
   ]);
 }
 
@@ -627,7 +664,7 @@ function setupRenderPipeline() {
   });
 
   noiseBuffer = device.createBuffer({
-    size: resolutionX * resolutionY * resolutionZ * 4 * 4,
+    size: resolutionX * resolutionY * resolutionZ * settings.generators.length * 4,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
   });
 
@@ -706,7 +743,7 @@ function generateNoise() {
   const dispatchY = Math.ceil(resolutionY / 8);
   const dispatchZ = Math.ceil(resolutionZ  / 8);
 
-  for (let c = 0; c < 4; c++) {
+  for (let c = 0; c < settings.generators.length; c++) {
     device.queue.writeBuffer(settingsBuffer, 0, GetSettingsBufferData(c));
     const commandEncoder = device.createCommandEncoder();
     const computePass = commandEncoder.beginComputePass();
@@ -742,6 +779,37 @@ function render() {
 
   device.queue.writeBuffer(renderBuffer, 0, GetRenderBufferData());
   device.queue.submit([commandEncoder.finish()]);
+}
+
+
+function initTooltips() {
+  // doesn't work on hidden panels: use v-show instead of v-if
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => bootstrap.Tooltip.getOrCreateInstance(el));
+}
+
+
+function addGenerator() {
+  if (settings.generators.length >= MAX_GENERATORS) return;
+  settings.generators.push({ ...defaultGeneratorSettings, seed: getRandomSeed(), uid: ++nextUid });
+  openGenerator.value = settings.generators.length - 1;
+  nextTick(initTooltips);
+}
+
+
+// Generators only reference earlier ones, so removing one re-points or clears every reference to it.
+function removeGenerator(k: number) {
+  if (settings.generators.length <= 1) return;
+  const shift = (v: number, fallback: number) => v === k ? fallback : v > k ? v - 1 : v;
+  settings.generators.splice(k, 1);
+  for (const g of settings.generators) {
+    g.warpSource = shift(g.warpSource, -1);
+    g.blendMask = shift(g.blendMask, -1);
+    g.blendA = shift(g.blendA, 0);
+    g.blendB = shift(g.blendB, 0);
+  }
+  for (const c of settings.channels) c.generator = shift(c.generator, 0);
+  settings.previewGenerator = shift(settings.previewGenerator, -1);
+  openGenerator.value = Math.min(shift(openGenerator.value, 0), settings.generators.length - 1);
 }
 
 
@@ -828,7 +896,13 @@ async function copyImageToClipboard() {
 
 
 async function loadSetting(loadedSettings: any) {
-  Object.assign(settings, loadedSettings);
+  Object.assign(settings, loadedSettings, {
+    // fill in fields older saves predate, and give every card a fresh key
+    generators: loadedSettings.generators.map((g: any) => ({ ...defaultGeneratorSettings, ...g, uid: ++nextUid })),
+    previewGenerator: -1,
+  });
+  openGenerator.value = 0;
+  nextTick(initTooltips);
 }
 
 

@@ -13,6 +13,17 @@ fn vertex(@builtin(vertex_index) i: uint) -> @builtin(position) float4 {
   return float4(pos[i], 0.0, 1.0);
 }
 
+// value, normal x, normal y, 0, 1 of generator g at this pixel
+fn sample_values(g: uint, index: uint, indexL: uint, indexB: uint, res: float2) -> array<float, 5> {
+  let count = uint(settings.generatorCount);
+  let i = min(g, count - 1u);
+  let v = noiseBuffer[index * count + i];
+  let gdx = (v - noiseBuffer[indexL * count + i]) * res.x * 0.1;
+  let gdy = (v - noiseBuffer[indexB * count + i]) * res.y * 0.1;
+  let glength = sqrt(gdx * gdx + gdy * gdy + 1.0);
+  return array<float, 5>(v, -gdx / glength * 0.5 + 0.5, -gdy / glength * 0.5 + 0.5, 0.0, 1.0);
+}
+
 @fragment
 fn fragment(@builtin(position) fragCoord: float4) -> @location(0) float4 {
   let generatorIndex = uint(settings.generatorIndex);
@@ -72,28 +83,20 @@ fn fragment(@builtin(position) fragCoord: float4) -> @location(0) float4 {
   let indexL = ((x + 1) % resolutionX) + resolutionX * y + resolutionX * resolutionY * z;
   let indexB = x + resolutionX * ((y + 1) % resolutionY) + resolutionX * resolutionY * z;
 
-  var values: array<array<float, 5>, 4>;
+  let res = float2(float(resolutionX), float(resolutionY));
+  var values = array<array<float, 5>, 4>(
+    sample_values(channel0generator, index, indexL, indexB, res),
+    sample_values(channel1generator, index, indexL, indexB, res),
+    sample_values(channel2generator, index, indexL, indexB, res),
+    sample_values(channel3generator, index, indexL, indexB, res),
+  );
+  let previewGenerator = i32(render.previewGenerator);
+  let activeValues = sample_values(activeGenerator, index, indexL, indexB, res);
 
-  for (var i = 0u; i < 4; i++) {
-    let g =  noiseBuffer[index  * 4 + i];
-    let gl = noiseBuffer[indexL * 4 + i];
-    let gb = noiseBuffer[indexB * 4 + i];
-    let gdx = (g - gl) * float(resolutionX) * normalScale * 0.1;
-    let gdy = (g - gb) * float(resolutionY) * normalScale * 0.1;
-    let glength = sqrt(gdx * gdx + gdy * gdy + 1.0);
-    let gdxn = (-gdx / glength * 0.5) + 0.5;
-    let gdyn = (-gdy / glength * 0.5) + 0.5;
-    values[i][0] = g;
-    values[i][1] = gdxn;
-    values[i][2] = gdyn;
-    values[i][3] = 0.0;
-    values[i][4] = 1.0;
-  }
-  
-  var outputR = saturate(pow(values[channel0generator][channel0type] * channel0gain, channel0gamma) + channel0offset);
-  var outputG = saturate(pow(values[channel1generator][channel1type] * channel1gain, channel1gamma) + channel1offset);
-  var outputB = saturate(pow(values[channel2generator][channel2type] * channel2gain, channel2gamma) + channel2offset);
-  var outputA = saturate(pow(values[channel3generator][channel3type] * channel3gain, channel3gamma) + channel3offset);
+  var outputR = saturate(pow(values[0][channel0type] * channel0gain, channel0gamma) + channel0offset);
+  var outputG = saturate(pow(values[1][channel1type] * channel1gain, channel1gamma) + channel1offset);
+  var outputB = saturate(pow(values[2][channel2type] * channel2gain, channel2gamma) + channel2offset);
+  var outputA = saturate(pow(values[3][channel3type] * channel3gain, channel3gamma) + channel3offset);
 
   if (channel0invert) { outputR = 1.0 - outputR; };
   if (channel1invert) { outputG = 1.0 - outputG; };
@@ -105,12 +108,18 @@ fn fragment(@builtin(position) fragCoord: float4) -> @location(0) float4 {
   outputBuffer[outputIndex * 4 + 2] = outputB;
   outputBuffer[outputIndex * 4 + 3] = outputA;
 
-  let output = float4(outputR * channel0display, outputG * channel1display, outputB * channel2display, mix(1.0, outputA, channel3display));
+  var output = float4(outputR * channel0display, outputG * channel1display, outputB * channel2display, mix(1.0, outputA, channel3display));
+
+  if (previewGenerator >= 0) {
+    // preview shows the raw generator value; outputBuffer (export) keeps the channel output
+    let pv = saturate(sample_values(uint(previewGenerator), index, indexL, indexB, res)[0]);
+    output = float4(pv, pv, pv, 1.0);
+  }
 
   let checkerColor = (floor(float(fragX) * 0.1) + floor(float(fragY) * 0.1)) % 2.0 * 0.2 + 0.2;
   let background = float4(checkerColor, checkerColor, checkerColor, checkerColor);
 
-  let normal = normalize(float3(values[activeGenerator][1] * 2.0 - 1.0, values[activeGenerator][2] * 2.0 - 1.0, 1.0));
+  let normal = normalize(float3(activeValues[1] * 2.0 - 1.0, activeValues[2] * 2.0 - 1.0, 1.0));
   let viewDirection = normalize(float3(u * 2.0 - 1.0, v * 2.0 - 1.0, 1.0));
   let lightDirection = normalize(float3(lightPositionX, lightPositionY, 1.0));
   let halfVec = normalize(lightDirection + viewDirection);

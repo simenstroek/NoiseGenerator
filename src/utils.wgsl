@@ -16,6 +16,16 @@ alias float4 = vec4<f32>;
 const NOISE_TYPE_RANDOM = 0;
 const NOISE_TYPE_PERLIN = 1;
 const NOISE_TYPE_VORONOI = 2;
+const NOISE_TYPE_BLEND = 3;
+
+const BLEND_MIX = 0;
+const BLEND_ADD = 1;
+const BLEND_MULTIPLY = 2;
+const BLEND_SCREEN = 3;
+const BLEND_DIFFERENCE = 4;
+const BLEND_MIN = 5;
+const BLEND_MAX = 6;
+const BLEND_OVERLAY = 7;
 
 const VORONOI_DISTANCE_TYPE_EUCLIDEAN = 0;
 const VORONOI_DISTANCE_TYPE_SQUARED = 1;
@@ -32,13 +42,10 @@ const VALUE_TYPE_0 = 3;
 const VALUE_TYPE_1 = 4;
 
 
-struct Settings {
-  generatorIndex: float,
-  resolutionX: float,
-  resolutionY: float,
-  resolutionZ: float,
-  xTiles: float,
-  yTiles: float,
+
+// Layout must match GetSettingsBufferData() in App.vue. Uniform arrays need a 16-byte aligned
+// offset and stride: header (8) + channels (28) = 36 floats = 144 B, Generator = 20 floats = 80 B (max 8, see MAX_GENERATORS in App.vue).
+struct Generator {
   noiseType: float,
   perlinSize: float,
   perlinOctaves: float,
@@ -51,6 +58,25 @@ struct Settings {
   voronoiDistanceType: float,
   seamless: float,
   seed: float,
+  warpSource: float,   // generator index, -1 = none
+  warpStrength: float,
+  blendA: float,
+  blendB: float,
+  blendMode: float,
+  blendFactor: float,
+  blendMask: float,    // generator index, -1 = use blendFactor
+  pad0: float,
+};
+
+struct Settings {
+  generatorIndex: float,
+  resolutionX: float,
+  resolutionY: float,
+  resolutionZ: float,
+  xTiles: float,
+  yTiles: float,
+  generatorCount: float,
+  pad1: float,
   channel0display: float,
   channel0generator: float,
   channel0type: float,
@@ -79,7 +105,9 @@ struct Settings {
   channel3gain: float,
   channel3gamma: float,
   channel3offset: float,
+  generators: array<Generator, 8>,
 };
+
 
 
 struct Render {
@@ -87,6 +115,10 @@ struct Render {
   lightPositionX: float,
   lightPositionY: float,
   activeGenerator: float,
+  previewGenerator: float, // -1 = show the channel output
+  pad0: float,
+  pad1: float,
+  pad2: float,
 }
 
 
